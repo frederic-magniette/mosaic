@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+import os
+import json
+from mosaic import Scheduler
+from argparse import ArgumentParser
+
+if __name__ == '__main__':
+	parser = ArgumentParser()
+	parser.add_argument('file_name', type=str)
+	args = vars(parser.parse_args())
+	file_name = args['file_name']
+
+	if file_name.split('.')[-1] != 'json':
+		print('json file required.')
+		exit(1)
+	elif not os.path.exists(file_name):
+		print(f'{file_name} not found.')
+		exit(1)
+
+
+	with open(file_name, 'r') as f:
+		monitor_info, process_info, pipelines, rerun, rerun_ids = json.load(f)
+	
+	if rerun:
+		process_info = {int(key):value for key, value in process_info.items()}
+		mntr = Scheduler(pipelines, monitor_info, None, rerun_ids=rerun_ids, rerun_params=process_info)
+	else:
+		mntr = Scheduler(pipelines, monitor_info, process_info)

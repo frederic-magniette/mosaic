@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+import json
+import sqlite3
+from tqdm import tqdm
+from argparse import ArgumentParser
+
+def format_pipeline(pipe):
+	res = []
+	for elem in pipe:
+		values = []
+		for key, value in elem.items():
+			if (key != 'name' and key != 'type' and key != 'path_to_class'
+			and key != 'class' and not key.endswith('key')):
+				values.append(str(value))
+		res.append(elem['class'] + '(' + ','.join(values) + ')')
+	return ' | '.join(res)
+
+if __name__ == '__main__':
+	parser = ArgumentParser()
+	parser.add_argument('pipeline_file', type=str)
+	parser.add_argument('database_file', type=str)
+	args = vars(parser.parse_args())
+
+
+	with open(args['pipeline_file'], 'r') as f:
+		pipelines = json.load(f)
+
+	db_con = sqlite3.connect(args['database_file'])
+	db_cur = db_con.cursor()
+
+	for pipe in tqdm(pipelines):
+		for elem in pipe:
+			if 'key' in elem:
+				formated_pipe = format_pipeline(pipe)			
+				db_con.execute('''UPDATE params SET param_value=? WHERE run_id IN (SELECT run_id FROM runs WHERE pipeline=?) AND param_name=?''', (elem['key'], formated_pipe, elem['type'] + '_key'))		
+		db_con.commit()

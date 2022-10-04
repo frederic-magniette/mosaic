@@ -1,0 +1,37 @@
+import setuptools
+
+setuptools.setup(
+         name = 'ml-mosaic',
+         version = '0.0.2',
+         author = 'Frederic Magniette',
+         author_email = 'magniette@llr.in2p3.fr',
+         scripts = ['mosaic/bin/mosaic_run',
+                    'mosaic/bin/mosaic_rerun',
+                    'mosaic/bin/mosaic_savedb',
+                    'mosaic/bin/mosaic_pause',
+                    'mosaic/bin/mosaic_resume',
+                    'mosaic/bin/mosaic_status',
+                    'mosaic/bin/mosaic_generate',
+                    'mosaic/bin/mosaic_plotloss',
+                    'mosaic/bin/mosaic_metaplot',
+                    'mosaic/lib/serviceModule.py',
+                    'mosaic/lib/execPipe.py'],
+         url = 'https://llrogcid.in2p3.fr/the-mosaic-framework/',
+         description = 'Mosaic is a framework dedicated to the comparison of AI models.',
+         packages = ['mosaic', 'mosaic.bin', 'mosaic.lib', 'mosaic.share'],
+         install_requires=[
+             'numpy',
+             'rpyc',
+             'matplotlib',
+             'tqdm',
+             'torch',
+             'pandas'
+             ],
+        classifiers=[
+        "Programming Language :: Python :: 3.8",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        ],
+        include_package_data=True,
+        python_requires='>=3.8'
+        )

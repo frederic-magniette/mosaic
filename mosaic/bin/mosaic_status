@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+import rpyc
+import json
+
+if __name__ == '__main__':
+    try:
+        smodule_con = rpyc.connect('localhost', port=1234)
+
+        print('Done')
+        status_done = json.loads(smodule_con.root.get_status_done())
+        for run_id, data in status_done.items():
+            print(f'\t[{run_id}]', data)
+
+        print('Error')
+        status_error = json.loads(smodule_con.root.get_status_error())
+        for run_id, data in status_error.items():
+            print(f'\t[{run_id}]', data)      
+
+        print('Running')
+        status_running = json.loads(smodule_con.root.get_status_running())
+        for run_id, data in status_running.items():
+            print(f'\t[{run_id}]', data)
+
+        smodule_con.close()
+
+    except Exception as e:
+        print(e)
+        print(f'ServiceModule unreachable')
