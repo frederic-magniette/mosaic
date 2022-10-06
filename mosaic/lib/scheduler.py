@@ -37,9 +37,12 @@ class Scheduler():
                 break
             except: time.sleep(0.5)
 
-        self.smodule_con.root.init_database(self.monitor_info['database_path'])
-        # FIXME Voir si c'est indispensable. Je peux sauvegarder les info du chemin de la db via l'init
-        self.smodule_con.root.send_monitor_info(json.dumps(self.monitor_info))
+        self.smodule_con.root.init_databases(self.monitor_info['database_path'], self.monitor_info['cache_path'])
+        sizes = {'T':1e12, 'G':1e9, 'M':1e6, 'K':1e3}
+        value = float(self.monitor_info['cache_size'][:-1])
+        unit = sizes[self.monitor_info['cache_size'][-1]]
+        cache_size = value * unit
+        self.smodule_con.root.set_system_cache(cache_size)
 
     def launch_pipelines(self):
         self.nb_processus = int(self.monitor_info['nb_processus'])
@@ -117,10 +120,10 @@ class Scheduler():
                         if proc_id == _id:
                             self.gpus_dict[gpu] = None
                             break
-                print('[run finished]', _id)
                 self.smodule_con.root.send_status(_id, 'end')
                 self.smodule_con.root.update_runs_table(_id, status='end')
                 self.procs[proc]['log_file'].close()
+                print('[run finished]', _id)
             else:
                 new_procs.update({proc:{'run_id' : _id, 'log_file' : self.procs[proc]['log_file']}})
         self.procs = new_procs

@@ -149,6 +149,7 @@ class ExecPipe():
         self.run_info['device'] = device
         if not self.rerun:
             self._save_pipeline_info(run_id)
+
         self._prepare_data_scheme()
         self._prepare_pipeline_scheme()
 
@@ -163,8 +164,8 @@ class ExecPipe():
             history = torch.load(f'./.runs/history_{str(run_id)}.pt')
         else:
             history = {'train_loss': [], 'test_loss': [],'train_acc':[],'test_acc':[]}
-        epochs = int(self.info['epochs'])
 
+        epochs = int(self.info['epochs'])
         train_loss, train_acc, test_loss, test_acc = None, None, None, None
         for epoch in range(epochs):
             calc_duration_start = time.perf_counter()

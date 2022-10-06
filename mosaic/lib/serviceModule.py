@@ -4,7 +4,10 @@
 import rpyc
 import json
 import sys
+import os
+import time
 import sqlite3
+from urllib import request
 from rpyc.utils.server import ThreadedServer
 from threading import Lock
 from shutil import copy2
@@ -21,10 +24,72 @@ TODO: Enlever le global_dic
 
 global_dic = {'process_data':{}, 'monitor_info':{}}
 pause = ''
+
 mutex = Lock()
 mutex.acquire()
 
+mutex_file = Lock()
+mutex_file.acquire()
+global_cache_path = ''
+global_database_path = ''
+queue = set()
+
 class ServiceModule(rpyc.Service): 
+
+    def exposed_download_file(self, url, path):
+        global mutex_file, global_cache_path
+        while url in queue:
+            time.sleep(0.1)
+        mutex_file.acquire()
+        con = sqlite3.connect(global_cache_path)
+        cur = con.cursor()
+        db_path = cur.execute('SELECT path FROM downloads WHERE url = ?', (url, )).fetchone()
+        con.close()
+        mutex_file.release()
+        if not db_path:
+            queue.add(url)
+            path_wo_file = '/'.join(path.split('/')[:-1])
+            os.makedirs(path_wo_file, exist_ok=True)
+            print('[+] Download : ', url)
+            path = os.path.abspath(path)
+            request.urlretrieve(url, path)
+            print('Download finished')
+            file_size = os.stat(path).st_size
+
+            mutex_file.acquire()
+            con = sqlite3.connect(global_cache_path)
+            cur = con.cursor()
+            cur.execute('''INSERT INTO downloads VALUES (?, DATETIME("now"), ?, ?, ?)''', (url, file_size, path, 'yes'))
+            max_size, current_size = cur.execute('''SELECT max_size, current_size FROM system''').fetchone()
+
+            new_size = current_size + file_size
+            if current_size + file_size > max_size:
+                diff_size = current_size + file_size - max_size
+                paths, sizes = zip(*cur.execute('''
+                    SELECT path, size
+                    FROM   downloads
+                    ORDER  BY last_use ASC
+                ''').fetchall())
+
+                sum_sizes = 0
+                i = 0
+                deleted_path = []
+                while sum_sizes < diff_size:
+                    sum_sizes += sizes[i]
+                    deleted_path.append((paths[i],))
+                    os.remove(paths[i])
+                    i += 1
+                cur.executemany('''DELETE FROM downloads WHERE path = ?''', deleted_path)
+                new_size = current_size + file_size - sum_sizes
+
+            db_path = path
+            cur.execute('''UPDATE system SET current_size = ?''', (new_size,))
+            con.commit()
+            con.close()
+            queue.remove(url)
+            mutex_file.release()
+
+        return db_path
 
     def exposed_get_next_id(self, database_path):
         global mutex
@@ -37,10 +102,6 @@ class ServiceModule(rpyc.Service):
         db_con.close()
         mutex.release()
         return next_id
-        
-    def exposed_send_monitor_info(self, monitor_info):
-        global global_dic
-        global_dic['monitor_info'] = json.loads(monitor_info)
 
     def exposed_send_results(self, run_id, data, rerun=False):
         data = json.loads(data)
@@ -54,9 +115,9 @@ class ServiceModule(rpyc.Service):
         self.save_pipeline(run_id, pipeline)
 
     def exposed_send_status(self, run_id, status, rerun=False):
-        global mutex, global_dic
+        global mutex, global_database_path
         mutex.acquire()
-        database_path = global_dic['monitor_info']['database_path']
+        database_path = global_database_path
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
         old_status = db_cur.execute('''SELECT param_value FROM params WHERE (param_name="status" AND run_id=?)''', (run_id, )).fetchone()
@@ -76,9 +137,9 @@ class ServiceModule(rpyc.Service):
         mutex.release()
 
     def exposed_send_traceback(self, run_id, traceback, rerun=False):
-        global mutex, global_dic
+        global mutex, global_database_path
         mutex.acquire()
-        database_path = global_dic['monitor_info']['database_path']
+        database_path = global_database_path
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
         if rerun:
@@ -90,9 +151,9 @@ class ServiceModule(rpyc.Service):
         mutex.release()
 
     def exposed_update_runs_table(self, run_id, status='undefined', pipeline='undefined', return_status='undefined'):
-        global mutex, global_dic
+        global mutex, global_database_path
         mutex.acquire()
-        database_path = global_dic['monitor_info']['database_path']
+        database_path = global_database_path
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
         _all = db_cur.execute('''SELECT * FROM runs WHERE run_id=?''', (run_id, )).fetchone()
@@ -116,9 +177,9 @@ class ServiceModule(rpyc.Service):
         mutex.release()
 
     def save_info(self, run_id, data, rerun):
-        global mutex, global_dic
+        global mutex, global_database_path
         mutex.acquire()
-        database_path = global_dic['monitor_info']['database_path']
+        database_path = global_database_path
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
         for key, value in data.items():
@@ -132,9 +193,9 @@ class ServiceModule(rpyc.Service):
         mutex.release()
 
     def save_results(self, run_id, data, rerun):
-        global mutex, global_dic
+        global mutex, global_database_path
         mutex.acquire()
-        database_path = global_dic['monitor_info']['database_path']
+        database_path = global_database_path
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
         if rerun:
@@ -170,9 +231,9 @@ class ServiceModule(rpyc.Service):
         mutex.release()
 
     def save_pipeline(self, run_id, pipeline):
-        global mutex
+        global mutex, global_database_path
         mutex.acquire()
-        database_path = global_dic['monitor_info']['database_path']
+        database_path = global_database_path
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
         db_cur.execute('''INSERT INTO params VALUES (?, ?, ?)''', (run_id, 'pipeline', pipeline))
@@ -188,8 +249,8 @@ class ServiceModule(rpyc.Service):
         mutex.release() 
 
     def exposed_get_status_done(self):
-        global global_dic, mutex
-        database_path = global_dic['monitor_info']['database_path']
+        global global_database_path, mutex
+        database_path = global_database_path
         mutex.acquire()
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
@@ -202,8 +263,8 @@ class ServiceModule(rpyc.Service):
         return json.dumps(return_dic)
 
     def exposed_get_status_error(self):
-        global global_dic, mutex
-        database_path = global_dic['monitor_info']['database_path']
+        global global_database_path, mutex
+        database_path = global_database_path
         mutex.acquire()
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
@@ -216,12 +277,14 @@ class ServiceModule(rpyc.Service):
         return json.dumps(return_dic)
 
     def exposed_get_status_running(self):
-        global global_dic, mutex
-        database_path = global_dic['monitor_info']['database_path']
+        global global_database_path, mutex
+        database_path = global_database_path
         mutex.acquire()
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
-        return_request = db_cur.execute('''SELECT run_id, pipeline FROM runs WHERE status="running" ORDER BY run_id ASC''').fetchall()
+        return_request = db_cur.execute('''SELECT run_id, pipeline
+                                           FROM runs WHERE status="running"
+                                           ORDER BY run_id ASC''').fetchall()
         return_dic = {}
         for run_id, pipeline in return_request:
             return_dic[run_id] = pipeline
@@ -229,22 +292,50 @@ class ServiceModule(rpyc.Service):
         mutex.release()
         return json.dumps(return_dic)
 
-    def exposed_init_database(self, database_path):
-        global mutex
+    def exposed_set_system_cache(self, max_size):
+        global mutex_file, global_cache_path
+        mutex_file.acquire()
+        cache_con = sqlite3.connect(global_cache_path)
+        cache_cur = cache_con.cursor()
+        old_max_size = cache_cur.execute('''SELECT max_size FROM system''').fetchone()
+        if old_max_size is None:
+            cache_cur.execute('''INSERT INTO system VALUES (?, 0)''', (max_size, ))
+        else:
+            cache_cur.execute('''UPDATE system SET max_size = ?''', (max_size, ))
+        cache_con.commit()
+        mutex_file.release()
+
+    def exposed_init_databases(self, database_path, cache_path):
+        global mutex, global_cache_path, global_database_path
+        global_cache_path = cache_path
+        global_database_path = database_path
         db_con = sqlite3.connect(database_path)
         db_cur = db_con.cursor()
         try:
-            next_run_id = int(db_cur.execute('''SELECT param_value FROM system WHERE param_name="next_run_id"''').fetchone()[0])
+            next_run_id = int(db_cur.execute('''SELECT param_value
+                                                FROM system
+                                                WHERE param_name="next_run_id"''').fetchone()[0])
         except:
-            print('Corrupted database, reinitializing')
             db_cur.execute('''CREATE TABLE params (run_id, param_name, param_value)''')
-            db_cur.execute('''CREATE TABLE IF NOT EXISTS run_results (run_id, train_loss, test_loss, train_acc, test_acc, nb_params, "duration(s)", epochs, overfit, trainability, slope)''')
+            db_cur.execute('''CREATE TABLE IF NOT EXISTS run_results (run_id, train_loss, test_loss, train_acc, test_acc,
+                              nb_params, "duration(s)", epochs, overfit, trainability, slope)''')
             db_cur.execute('''CREATE TABLE system (param_name, param_value)''')
             db_cur.execute('''CREATE TABLE runs (run_id, status, pipeline, return_status)''')
             db_cur.execute('''INSERT INTO system VALUES ("next_run_id", 1)''')
             db_con.commit()
+        
+
+        cache_con = sqlite3.connect(cache_path)
+        cache_cur = cache_con.cursor()
+
+        cache_cur.execute('''CREATE TABLE IF NOT EXISTS downloads (url, last_use, size, path, downloading)''')
+        cache_cur.execute('''CREATE TABLE IF NOT EXISTS system (max_size, current_size)''')
+        cache_con.commit()
+
         db_con.close()
+        cache_con.close()
         mutex.release()
+        mutex_file.release()
 
     def exposed_set_paused(self, filename):
         global pause
@@ -259,8 +350,8 @@ class ServiceModule(rpyc.Service):
         return ''
 
     def exposed_save_database(self, path):
-        global mutex, global_dic
-        database_path = global_dic['monitor_info']['database_path']
+        global mutex, global_database_path
+        database_path = global_database_path
         mutex.acquire()
         if path != database_path:
             copy2(database_path, path)
@@ -277,7 +368,7 @@ class ServiceModule(rpyc.Service):
 if __name__ == '__main__':
     try: 
         if len(sys.argv) > 1:
-            global_dic['monitor_info']['database_path'] = sys.argv[1]
+            global_database_path = sys.argv[1]
         threaded_server = ThreadedServer(ServiceModule, 'localhost', port=1234)
         threaded_server.start()
     except Exception as e:

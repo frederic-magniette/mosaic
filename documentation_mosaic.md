@@ -1,5 +1,53 @@
 ## Documentation
 
+#### Introduction
+
+Mosaic is a framework dedicated to the comparison of AI models. It is often very difficult to choose the best AI model for a specific problematic and multiple options are available, including choices over the model hyper-parameters. It is tempting to try different options and to compare them to get the best performance/resource ratio. But this kind of test can be pretty time consuming from the developper point of vue. The Mosaic framework eases the automation of the program generation and provides tools to help the study (Database, plot system…)
+
+Mosaic is a python framework based on Pytorch. From a simple configuration file, a set of pipelines is generated including all the steps of the data treatment (data loading, formatting, normalization, post-treatment…) and the model training itself. The framework executes all these pipelines in a parallel way and store all the results in a database and in differents files. Some facility are offered to pause/resume and monitor the run. A plot module helps getting some compact and graphical representations to ease the interpretation of this data.
+
+![plan](mosaic/doc/plan.png)
+
+#### Type of files
+
+- json : Tous les fichiers de pipeline
+- ini : Fichier de configuration
+- py : Fichiers des classes
+- mdt : Fichiers de métadata
+- pt : Fichiers sauvegardés par torch.save, comme l'historique des runs
+- log : Fichiers de sortie stdout et stderr des runs
+- pdf : Fichier de stockage des plots
+- db : Fichier de base de données
+
+#### Pipelines
+
+Les pipelines sont des combinaisons d'arguments associés à des classes et indique l'ordre dans lequel les classes doivent être utilisées. Ces classes peuvent générer ou renvoyer de la donnée ou la transformer et sont crées par l'utilisateur selon certaines règles decrites dans les sections [classes type data_scheme](#classes-type-datascheme) et [classes type pipeline_scheme](#classes-type-datascheme).
+
+Exemple d'une pipeline d'entrainement d'un mlp funnel sur un dataset d'opérateur logique OR. Les pipelines sont issues du fichier de configuration.
+
+```json
+[
+	{
+		"type": "dataset",
+		"class": "dataset_OR",
+		"path_to_class": "./mosaic/share/dataset.py",
+		"batch_size": "1",
+		"data_size": "200",
+		"train_prop": "0.8",
+		"key": "data_dataset_OR"
+	},
+	{
+		"type": "mlp",
+		"class": "mlp_funnel",
+		"path_to_class": "./mosaic/share/mlp.py",
+		"length": "4",
+		"width": "2",
+		"key": "mlp_mlp_funnel",
+		"name": "mlp_funnel"
+	}
+],
+```
+
 #### Classes type data_scheme
 
 Il faut obligatoirement défnir les méthodes suivantes:
@@ -143,6 +191,15 @@ Alors, 3 runs vont se lancer, un pour chaque depth de mlp
 		- *-param_name_and_value_high_threshold NAME VALUE*: Afficher les ids sont superieurs à la valeur VALUE de la clé NAME dans la base de donnée
 	- Default argument:
 		- *-plot_size 2*: Le nombre de plots affichés sur chaque page (plot_size * plot_size)
+
+- `mosaic_metaplot`
+	Permet de faire un plot pour comparer des modèles à partir d'un dataset. Il affiche le nombre de paramètre des modèles en fonction de critères de la base de donnée.
+	- Positional arguments:
+		- *database_file*: Nom du fichier de la base de donnée dans laquelle nous voulons aller chercher les informations
+		- *output_file*: Nom du ficher de sauvegarde du plot
+		- *dataset_key_criterion*: Nom de la clé associé au dataset que l'on veut étudier
+		- *param_criterion*: Nom du paramètre que l'on veut étudier :
+		train_loss, test_loss, train_acc, test_acc, nb_params, duration(s), epochs, overfit, trainability, slope
 
 - `mosaic_rekey`
 	Permet de changer les clés dans la base de donnée en fonction d'un fichier de pipelines.
