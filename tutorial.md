@@ -84,15 +84,18 @@ lr = 1e-2
 epochs = 400
 data_scheme = dataset
 pipeline_scheme = mlp
+run_files_path = .runs
 
 [MONITOR]
 need_gpu = False
 gpu_available = None
 nb_processus = 8
 multiplicity = 4
+cache_database_path = ./cache.db
+cache_size = 1M
 ```
 
-qui possèdent des arguments de gestion de la méthode d'execution ou des informations relatives à tous les runs.
+qui possèdent des arguments de gestion de la méthode d'execution ou des informations relatives à tous les runs. Les arguments liés au cache sont utiles si vous utilisez la fonction mosaic.lib.download_file qui permet de télécharger intelligemment et de façon parrallélisé des fichiers. Le cache sert notamment à ne pas télécharger 2 fois un même fichier si le téléchargement se fait dans la classe du data_scheme. 
 
 Ensuite ajoutons pour chaque classes que l'on veut comparer, sa section avec les arguments que l'on souhaite lui faire passer.
 Nous devons spécifier les arguments suivants obligatoirement: type, classe, path_to_class, key
@@ -176,7 +179,7 @@ Si je veux par exemple relancer 200 epochs sur les 3 premiers runs, je peux fair
 Toutes les données issues des différents runs sont stockées dans une base de donnée et peuvent être analysées grâce aux commandes `mosaic_plotloss` `mosaic_metaplot`.
 
 ```bash
->> mosaic_plotloss database.db plotloss_output.pdf -id all -plot_size 3
+>> mosaic_plotloss database.db plotloss_output.pdf .runs -id all -plot_size 3
 ```
 
 Une partie des résultats de plotloss

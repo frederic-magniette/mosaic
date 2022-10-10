@@ -52,7 +52,11 @@ class ServiceModule(rpyc.Service):
             os.makedirs(path_wo_file, exist_ok=True)
             print('[+] Download : ', url)
             path = os.path.abspath(path)
-            request.urlretrieve(url, path)
+            try:
+                request.urlretrieve(url, path)
+            except:
+                print(f'URL {url} not found.')
+                return None
             print('Download finished')
             file_size = os.stat(path).st_size
 

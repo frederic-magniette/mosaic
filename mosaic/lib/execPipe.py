@@ -18,6 +18,9 @@ class ExecPipe():
         self.pipeline = pipeline
         self.info = info
         self.rerun = rerun
+        self.run_dir = self.info['run_files_path']
+        if not self.run_dir.endswith('/'):
+            self.run_dir += '/'
         self.database_path = self.info['database_path']
         self.run_info = {}
         self._classify_schemes()
@@ -33,6 +36,8 @@ class ExecPipe():
         self.modules_pointers = {}
         for module in self.pipeline:
             path = module['path_to_class']
+            import os
+            sys.path.append(os.path.abspath(path))
             path = path.split('/')
             file = path[-1]
             path = path[:-1]
@@ -71,7 +76,7 @@ class ExecPipe():
         return params
 
     def _save_pipeline_info(self, run_id):
-        root = f"./.runs/"
+        root = f"./{self.run_dir}"
         with open(F'{root}run_info_{str(run_id)}.mdt', 'a') as f:
             f.write(f"pipeline={json.dumps(self.pipeline)}\n")
             f.flush()
@@ -139,7 +144,7 @@ class ExecPipe():
             params = self._get_params(module_class, self.run_info)
             module_class = module_class(**params)
             if self.rerun:
-                module_class.load_model(f'.runs/model_{module_class.__class__.__name__}_{str(self.run_info["run_id"])}')
+                module_class.load_model(f'{self.run_dir}model_{module_class.__class__.__name__}_{str(self.run_info["run_id"])}')
             self.pipeline_modules.append(module_class)
             self.run_info.update(module_class.info())
 
@@ -158,10 +163,10 @@ class ExecPipe():
 
         lr = float(self.info['lr'])
         optimizer = torch.optim.Adam(self.pipeline_modules[-1].parameters(), lr=lr)
-        crit = torch.nn.MSELoss(reduction='mean').to(self.run_info['device'])
+        crit = eval('torch.nn.' + self.info['loss_function'] + '().to(self.run_info["device"])')
 
         if self.rerun:
-            history = torch.load(f'./.runs/history_{str(run_id)}.pt')
+            history = torch.load(f'./{self.run_dir}history_{str(run_id)}.pt')
         else:
             history = {'train_loss': [], 'test_loss': [],'train_acc':[],'test_acc':[]}
 
@@ -190,15 +195,15 @@ class ExecPipe():
             history['test_acc'].append(test_acc)
             
             
-            torch.save(history, f'./.runs/history_{str(run_id)}.pt')
+            torch.save(history, f'./{self.run_dir}history_{str(run_id)}.pt')
 
             
             for model in self.pipeline_modules:
-                model.save_model(f'.runs/model_{model.__class__.__name__}_{str(run_id)}')
+                model.save_model(f'{self.run_dir}/model_{model.__class__.__name__}_{str(run_id)}')
 
         run_duration = time.perf_counter() - run_duration
 
-        with open(f'./.runs/run_info_{str(run_id)}.mdt', 'a') as f:
+        with open(f'./{self.run_dir}run_info_{str(run_id)}.mdt', 'a') as f:
             f.write(f'\ntrain_loss={train_loss}')
             f.write(f'\ntrain_acc={train_acc}')
             f.write(f'\ntest_loss={test_loss}')

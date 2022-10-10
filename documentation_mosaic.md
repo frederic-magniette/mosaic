@@ -8,6 +8,15 @@ Mosaic is a python framework based on Pytorch. From a simple configuration file,
 
 ![plan](mosaic/doc/plan.png)
 
+
+#### Installation
+
+```bash
+pip3 install ml-mosaic
+```
+
+*note : si vous souhaitez utiliser les commandes aussi facilement que des commandes normales, il est recommandé d'executer la commande en étant root* 
+
 #### Type of files
 
 - json : Tous les fichiers de pipeline
@@ -62,6 +71,8 @@ Il faut obligatoirement défnir les méthodes suivantes:
 	Si une variable est utilisé en tant que paramètre dans une autre classe, il faut absolument
 	que la clé soit exactement la même que le nom du paramètre.
 
+Si votre classe a besoin de télécharger un fichier avec un url, il est conseillé d'utiliser `mosaic.lib.download_file(url, path)` qui fonctionne avec un cache afin de ne pas télécharger plusieurs fois le même fichier. Cette fonction vous renverra le chemin vers le fichier demandé.
+
 #### Classes type pipeline_scheme
 
 if faut obligatoirement définir les méthodes suivantes :
@@ -100,6 +111,7 @@ Un fichier de configuration doit posséder obligatoirement les sections suivante
 		renvoyer deux DataLoader qui correspondent à un jeu d'entrainement et un jeu de test.
 		- *pipeline_scheme* : La séquence de transformateurs de la donnée. Les modules s'enchainent de la
 		même façon que pour le data_scheme. L'input est l'output du module précédent.
+		- *run_files_path* : Chemin vers lequel les fichiers associés aux runs seront sauvegardés.
 - `MONITOR`
 	- Cette section doit obligatoirement contenir:
 		- *need_gpu* : Permet de savoir si il faut passer en mode GPU et utiliser la section suivante,
@@ -108,6 +120,12 @@ Un fichier de configuration doit posséder obligatoirement les sections suivante
 		- *nb_processus* : Permet de parralléliser les runs. Si *need_gpu* est True, le nombre de processus
 		correspond au nombre de GPUs que l'on veut utiliser. Sinon au nombre de CPUs
 		- *multiplicity* : Permet de répéter chaque runs
+		- *cache_database_path* : Chemin vers la base de donnée du cache que l'on souhaite utiliser. Possède les informations des fichiers téléchargés par *mosaic.lib.download_file()*.
+		- *cache_size* : Taille de stockage du cache. Si la taille devient supérieure à cette valeur, alors les fichiers les plus anciens sont supprimés. Les tailles doivent être entrée avec leur unité en octets:
+			`T pour Tera`
+			`G pour Giga`
+			`M pour Mega`
+			`K pour Kilo`
 
 Les autres sections réservées aux classes doivent obligatoirement contenir:
 - *type* : Indique le type de la classe qui se trouve parmis ceux dans data_scheme ou pipeline_scheme et permet de faire les combinaisons de modules.
@@ -183,6 +201,7 @@ Alors, 3 runs vont se lancer, un pour chaque depth de mlp
 	- Positional arguments:
 		- *database_file*: Un fichier .db existant dans lequel le binaire va aller chercher les informations pour relancer le run
 		- *pdf_path*: Chemin de sauvegarde du pdf 
+		- *run_files_path*: Chemin vers les fichiers d'informations des runs. Même paramètre que celui dans le fichier de configuration.
 	-  Mutually exclusive required arguments:
 		- *-id ID,RANGE,LIST*: Les ids à afficher
 		- *-request SQL_REQUEST*: Une requête SQL qui renvoie des ids à afficher

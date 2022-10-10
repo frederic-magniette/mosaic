@@ -37,7 +37,7 @@ class Scheduler():
                 break
             except: time.sleep(0.5)
 
-        self.smodule_con.root.init_databases(self.monitor_info['database_path'], self.monitor_info['cache_path'])
+        self.smodule_con.root.init_databases(self.monitor_info['database_path'], self.monitor_info['cache_database_path'])
         sizes = {'T':1e12, 'G':1e9, 'M':1e6, 'K':1e3}
         value = float(self.monitor_info['cache_size'][:-1])
         unit = sizes[self.monitor_info['cache_size'][-1]]
@@ -47,6 +47,9 @@ class Scheduler():
     def launch_pipelines(self):
         self.nb_processus = int(self.monitor_info['nb_processus'])
         self.need_gpu = self.monitor_info['need_gpu'] == 'True'
+        self.files_dir = self.process_info['run_files_path']
+        if not self.files_dir.endswith('/'):
+            self.files_dir += '/'
         if self.need_gpu:
             self.gpus_available = re.findall(r'[\w:]+', self.monitor_info['gpu_available'])
             self.gpus_dict = {gpu : None for gpu in self.gpus_available}
@@ -77,8 +80,8 @@ class Scheduler():
                 self.smodule_con.root.send_status(self.run_id, 'running', self.rerun_ids != None)
                 self.smodule_con.root.update_runs_table(self.run_id, pipeline=self._format_pipeline(pipeline_serialized), status='running')
      
-                os.makedirs('.runs', exist_ok=True)
-                log_file = open(f'.runs/output_{self.run_id}.log', 'w')
+                os.makedirs(self.files_dir, exist_ok=True)
+                log_file = open(f'{self.files_dir}output_{self.run_id}.log', 'w')
                 p = subprocess.Popen(['execPipe.py', str(self.run_id), pipeline_serialized, process_info_serialized, device, str(int(self.rerun_ids != None))], stdout=log_file, stderr=log_file)
                 self.procs[p] = {'log_file' : log_file, 'run_id' : self.run_id}
                 i += 1
@@ -139,3 +142,9 @@ class Scheduler():
                     values.append(str(value))
             res.append(elem['class'] + '(' + ','.join(values) + ')')
         return ' | '.join(res)
+
+    def __del__(self):
+        try:
+            self.smodule_con.root.exit()
+        except:
+            pass

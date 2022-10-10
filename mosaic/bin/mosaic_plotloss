@@ -17,7 +17,7 @@ import numpy as np
 '''
 
 def usage(name=sys.argv[0]):
-	return f'''{name} [database_path] [output_name]
+	return f'''{name} [database_path] [output_name] [run_files_path]
  	[-h]
 	[-id ID, RANGE, LIST | str]
 	[-request SQL_REQUEST | str]
@@ -75,7 +75,7 @@ def args_parse_id(value, database_path):
         data = cur.execute(f'''SELECT runs.run_id, runs.pipeline, run_results.nb_params 
                                FROM runs
                                     INNER JOIN run_results ON runs.run_id = run_results.run_id
-                               WHERE runs.run_id IN {tuple(ids_set)}''').fetchall()
+                               WHERE runs.run_id {'IN' + str(tuple(ids_set)) if len(ids_set) > 1 else '=' + str(*ids_set)}''').fetchall()
     return data
 
 def args_parse_param_name_value(arg, database_path):
@@ -151,6 +151,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(usage=usage())
     parser.add_argument('database_path', type=str)
     parser.add_argument('output_name', type=str)
+    parser.add_argument('runs_files_directory', type=str)
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-id', type=str, help='test', metavar='ID, RANGE, LIST')
@@ -170,6 +171,9 @@ if __name__ == '__main__':
 
     pdf = PdfPages(args['output_name'])
     plt_size = args['plot_size']
+    run_dir = args['runs_files_directory']
+    if not run_dir.endswith('/'):
+        run_dir += '/'
 
     legendFig = plt.figure()
 
@@ -177,7 +181,8 @@ if __name__ == '__main__':
         if i % (plt_size ** 2) == 0:
             fig, ax = plt.subplots(plt_size, plt_size)
         try:
-            history = torch.load(f'.runs/history_{id}.pt')
+
+            history = torch.load(f'{run_dir}history_{id}.pt')
             
             hist_test = np.array(history['test_loss'])
             hist_train = np.array(history['train_loss'])
@@ -225,8 +230,11 @@ if __name__ == '__main__':
                     pdf.savefig(legendFig)
                 plt.close()
         except Exception as exp:
+            import traceback
+            trace = traceback.format_exc()
+            print(trace)
             print(exp)
-            print(f'File .runs/history_{id}.pt not found.')
+            print(f'File {run_dir}history_{id}.pt not found.')
 
 
 pdf.close()

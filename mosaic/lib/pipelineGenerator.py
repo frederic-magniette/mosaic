@@ -39,7 +39,7 @@ class PipelinesGenerator():
     def __findall_list_combinations(self, sections, section, section_name):
         li_found = 0
         for key, values in section.items():
-            li = re.findall(r'[\w\.\/{}-]+', str(values))
+            li = re.findall(r'[\w\.\/\:{}-]+', str(values))
             if len(li) > 1:
                 li_found = 1
                 for elem in li:
