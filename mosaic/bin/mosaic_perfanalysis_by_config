@@ -8,76 +8,9 @@ import pandas as pd
 import numpy as np
 import sqlite3
 import re
-
-
-'''
-
-	include => param_value
-	exclude => a prendre dans la pipeline
-
-	ordinate => Soit run_results soit params %width
-	abscissa => 
-
-
-	[{'Challenge'}, {'class' : 'mlp', 'depth':4}]
-	
-	'Challenge' | 'mlp'
-
-
-			abs1 abs2 abs3
-pipeline	val1 val2 val3
-
-			ord1 ord2 ord3
-pipeline	val1 val2 val3
-pipeline
-pipeline2
-
-
-liste_abs_unique = abs1 abs2 abs3
-
-
-
-	1 - Récupérer le SELECT que j'utilisais avant pour pourvoir récupérer les ids et les pipelines dans le même temps
-		1.1 - Faire une map qui associe les pipelines avec les ids pour pouvoir utiliser les pipelines dans un second temps
-
-	2 - Avec ces ids, je peux aller plus facilement récupérer les valeurs dans les différentes tables en fonction de si le paramètre est dans run_result ou pas
-
-	3 - Pour chaque id qui se trouvent dans ids, je vais faire une requête pour récupérer l'élement de l'abscisse et de l'ordonnée associé à l'ID
-		3.1 - Je stocke tout ça dans un dictionnaire qui aura comme clé le nom du paramètre que je viens de chercher dans la db avec un dictionnaire avec la pipeline et la valeur du paramètre pour valeur
-
-	4 - Je fusionne les deux dictionnaires et les mets dans un dataframe
-
-	5 - Je peux boucler sur les abscisses uniques, faire des groupby et faire des plots en fonction de ces groupby
-
-	6 - Sauvegarder le plot comme une page d'un fichier PDF que je peux ouvrir avec FPDF par exemple
-
-
-	for _id in ids_list:
-		for param in ordinate
-		
-			# Il faut que je stocke ça dans une liste ou dans un dictionnaire de liste : {param : {pipeline : result}} --> Transformable en DF
-			
-			self.cur.execute("""SELECT DISTINCT p0.param_value, p1.param_value
-			FROM params p0
-				INNER JOIN params p1 ON p1.run_id = p0.run_id
-			WHERE p0.param_name LIKE "%pipeline" AND p1.param_name LIKE "%{param}" AND p0.run_id = ?""").fetchall()
-
-
-
-
-	SELECT DISTINCT p0.run_id, p1.pipeline
-	FROM params p0
-		INNER JOIN params p1 ON p1.run_id = p0.run_id
-	WHERE p1.param_name = "%pipeline" AND (p0.param_value 
-
-
-
-	Faire une liste de liste des élements qui se trouvent dans include_values
-
-
-'''
-
-
+import matplotlib.pyplot as plt
+import mosaic.lib.plt_params
+from seaborn import violinplot
 
 class Perf_Analysis():
 	def __init__(self, config_file, database_file):
@@ -101,101 +34,120 @@ class Perf_Analysis():
 
 	def replace_list_config_section(self, config_section):
 		for key, values in config_section.items():
-			li = re.findall(r'[\w\.\/\:{}-]+', str(values))
-			config_section[key] = li
+			list_of_list = re.findall(r'\[(.+?)\]|(\w+)', str(values))
+			list_of_list = ["".join(elem) for elem in list_of_list]
+			conf_section_list = []
+			for li in list_of_list:
+				conf_section_list.append(re.findall(r'[\w\.\/\:{}-]+', li))
+			config_section[key] = conf_section_list
 		return config_section
+
+	def find_pipelines_in_database(self):
+		self.con = sqlite3.connect(self.database_file)
+		self.cur = self.con.cursor()
+		ids_set = {}
+		self.includes = list(zip(self.include_keys, self.include_values))
+		for key, values in self.includes:
+			_where = (f'\nWHERE p0.param_name LIKE "%{key[0]}" AND (' +
+					  ' OR '.join([f'p0.param_value LIKE "%{value}"' for value in values])
+					  + ') AND p1.param_name LIKE "%pipeline"')
+
+			select = set(self.cur.execute('''
+				SELECT DISTINCT p0.run_id, p1.param_value
+				FROM params p0
+					INNER JOIN params p1 ON p0.run_id = p1.run_id'''
+				+ _where
+				).fetchall())
+
+			if len(ids_set) != 0:
+				ids_set &= select
+			else:
+				ids_set = select
+
+		df = pd.DataFrame(ids_set, columns=['run_id', 'pipeline'])
+		return df
 
 	def crop_pipeline(self, pipeline):
 		pipeline = json.loads(pipeline)
 		for module in pipeline:
-			for to_exclude in self.exclude:
+			for to_exclude in self.excludes:
 				if to_exclude in module: 
 					module.pop(to_exclude)
 		return json.dumps(pipeline)
+
+	def get_abscissa_and_ordinate(self, pipeline_ids_dataframe):
+		df = pd.DataFrame(pipeline_ids_dataframe['run_id'])
+		list_of_params = self.abscissae + self.ordinates
+		for param in list_of_params:
+			
+			if param in ['test_loss', 'train_loss', 'test_acc', 'train_acc', 'epochs', 'nb_params', 'duration(s)', 'overfit', 'trainability', 'slope']:
+				df_parameters = pd.DataFrame(self.cur.execute(f'''
+				SELECT run_id, {param}
+				FROM run_results
+				WHERE run_id IN {tuple(pipeline_ids_dataframe['run_id'])}''').fetchall(), columns=['run_id', param])
+			else:
+				param_like_syntax = '"%' + param + '"'
+				df_parameters = pd.DataFrame(self.cur.execute(f'''
+				SELECT run_id, param_value
+				FROM params
+				WHERE param_name LIKE {param_like_syntax} AND run_id IN {tuple(pipeline_ids_dataframe['run_id'])}
+				''').fetchall(), columns=['run_id', param])
+			if df_parameters.empty:
+				raise Exception(f'Empty dataframe on param = {param}.')
+
+			run_ids_match = all(np.sort(df_parameters['run_id']) == np.sort(df['run_id']))
+
+			if not run_ids_match:
+				raise Exception(f"Ids don't match on param = {param}")
+
+			df = pd.merge(df, df_parameters, on='run_id')
+
+		return pd.merge(df, pipeline_ids_dataframe, on='run_id')
+
+	def plot(self, config_section, plot_name):
+		self.abscissae = config_section['abscissae']
+		self.ordinates = config_section['ordinates']
+		self.include_keys = config_section['include_keys']
+		self.include_values = config_section['include_values']
+		self.excludes = config_section['excludes']
+		self.plot_type = config_section['plot_type']
+		self.abscissae = list(map(lambda elem : elem[0], self.abscissae))
+		self.ordinates = list(map(lambda elem : elem[0], self.ordinates))
+		self.excludes = list(map(lambda elem : elem[0], self.excludes))
+		self.plot_type = self.plot_type[0][0]
+
+		df = self.find_pipelines_in_database()
+		df = self.get_abscissa_and_ordinate(df)
+
+		df['pipeline'] = df['pipeline'].apply(self.crop_pipeline)
+		df['pipeline'] = df['pipeline'].apply(self._format_pipeline)
 	
-	def groupby_mean_std(self, data):
 		aggr_dict = {}
-		for col in self.ordinate:
+		list_of_params = self.abscissae + self.ordinates
+		for col in list_of_params:
 			aggr_dict[col] = [np.mean, np.std]
 
-		return data.groupby(self.abscissa + ['pipeline', 'label']).agg(aggr_dict)
+		list_of_pipelines = df['pipeline'].unique()
+		for abs in self.abscissae:
+			for ord in self.ordinates:
+				if self.plot_type == 'line' or self.plot_type == 'point':
+					for pipeline in list_of_pipelines:
+						extract_df = df[df['pipeline'] == pipeline]
+						extract_df_mean = extract_df.groupby([abs, 'pipeline']).mean().reset_index()
+						extract_df_std = extract_df.groupby([abs, 'pipeline']).std().reset_index()
+						plt.errorbar(extract_df_mean[abs], extract_df_mean[ord], yerr=extract_df_std[ord], label=pipeline)
+						#plt.plot(extract_df_mean[abs], extract_df_mean[ord], label=pipeline)
+						#plt.fill_between(extract_df_mean[abs], extract_df_mean[ord] - extract_df_std[ord], extract_df_mean[ord] + extract_df_std[ord], alpha=0.5)
+				elif self.plot_type == 'violin':
+					violinplot(data=df, y=ord, x=abs, hue='pipeline', scale='count', inner='box')
 
-	def get_dataframe_from_db(self):
-		self.con = sqlite3.connect(self.database_file)
-		self.cur = self.con.cursor()
-
-		_select = (	'SELECT DISTINCT '
-					+ ', '.join([f'p0.{ab}' for ab in self.abscissa] + [f'p0.{ordi}' for ordi in self.ordinate])
-					+ ', p1.param_value')
-
-		_where = ('WHERE p1.param_name LIKE "%pipeline" AND p2.pipeline LIKE ' + ' AND p2.pipeline LIKE '.join([f'"%{include}%"' for include in self.include]))
-
-		data = pd.DataFrame(self.cur.execute(f'''
-			{_select}
-			FROM run_results p0
-				INNER JOIN params p1 ON p0.run_id = p1.run_id
-				INNER JOIN runs p2 ON p0.run_id = p2.run_id
-			{_where}
-		''').fetchall(), columns=self.abscissa + self.ordinate + ['pipeline'])
-
-		self.con.close()
-		return data
-
-	def get_dataframe_from_db(self):
-		self.con = sqlite3.connect(self.database_file)
-		self.cur = self.con.cursor()
-
-		_select = 'SELECT DISTINCT p0.run_id, p1.param_value'
-
-		_where = ('WHERE p1.param_name LIKE "%pipeline" AND p2.pipeline LIKE ' + ' AND p2.pipeline LIKE '.join([f'"%{include}%"' for include in self.include]))
-
-		data = pd.DataFrame(self.cur.execute(f'''
-			{_select}
-			FROM run_results p0
-				INNER JOIN params p1 ON p0.run_id = p1.run_id
-				INNER JOIN runs p2 ON p0.run_id = p2.run_id
-			{_where}
-		''').fetchall(), columns=['run_id', 'pipeline'])
-
-		# Avec tous les ids, aller chercher les éléments qui se trouvent dans abscissa et ordinate dans la db
-		# Si l'élément n'est pas dans liste alors j'utilise le SELECT que j'ai écris plus haut
-		# Sinon, je requête directement run_result avec le bon paramètre
-		# Si je le trouve nul part, alors je renvoie une erreur ? LE but étant de vouloir faire des plots et si le nom n'y est pas c'est que l'utilisateur s'est trompé
-
-
-		abscissa_dict = {}
-		for ab in self.abscissa:
-			for _, (run_id, pipeline) in data.iterrows():
-				print('[+]run_id, ', run_id, '\n[+]pipeline:', pipeline, '\n\n')
-				if ab not in ['test_loss', 'train_loss', 'test_acc', 'train_acc', 'epochs', 'nb_params', 'duration(s)', 'overfit', 'trainability', 'slope']:
-					param = f'%{ab}'
-					val = self.cur.execute(f"""SELECT DISTINCT p0.param_value
-						FROM params p0
-						WHERE p0.param_name LIKE ? AND p0.run_id = ?""", (param, run_id)).fetchone()
-					if val is None:
-						print('ERROR')
-						exit(1)
-
-					abscissa_dict[run_id] = {pipeline : val}
-
-
-		self.con.close()
-		exit()
-		return data
-
-	def make_a_plot(self, config_section, plot_name):
-		self.abscissa = config_section['abscissa']
-		self.ordinate = config_section['ordinate']
-		self.include = config_section['include']
-		self.exclude = config_section['exclude']
-
-		data = self.get_dataframe_from_db()
-
-		data['pipeline'] = data['pipeline'].apply(self.crop_pipeline)
-		df = data['pipeline'].apply(lambda row : self._format_pipeline(row))
-		data['label'] = df
-		data = self.groupby_mean_std(data)
-		print(data)
+			
+				#plt.title(plot_name)
+				plt.xlabel(abs)
+				plt.ylabel(ord)
+				plt.legend()
+				plt.tight_layout()
+				plt.show()
 		
 
 	def scheduler(self):
@@ -203,7 +155,7 @@ class Perf_Analysis():
 			if plot_name != 'global':
 				section = dict(self.conf_parser[plot_name])
 				section = self.replace_list_config_section(section)
-				self.make_a_plot(section, plot_name)
+				self.plot(section, plot_name)
 
 
 
