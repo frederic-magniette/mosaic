@@ -63,6 +63,8 @@ if __name__ == '__main__':
 	args = vars(parser.parse_args())
 	database_path = args['database_path']
 
+	# critère ordonnée + nb_params + dataset_key
+	# Boucler sur les modèles
 
 	df = extract_columns(['shaped_mlp_shape', 'Challenges_data_name', 'shaped_mlp_activation'], ['test_loss', 'nb_params'], database_path)
 	df = apply_cuts(df, [('shaped_mlp_shape', 'brick', '='), ('Challenges_data_name', 'sin2', '='), ('shaped_mlp_activation', 'tanh', '=')])

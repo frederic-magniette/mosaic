@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import re
+import os
 import sys
 import rpyc
 import time
@@ -36,7 +37,6 @@ class ExecPipe():
         self.modules_pointers = {}
         for module in self.pipeline:
             path = module['path_to_class']
-            import os
             sys.path.append(os.path.abspath(path))
             path = path.split('/')
             file = path[-1]
@@ -163,7 +163,19 @@ class ExecPipe():
 
         lr = float(self.info['lr'])
         optimizer = torch.optim.Adam(self.pipeline_modules[-1].parameters(), lr=lr)
-        crit = eval('torch.nn.' + self.info['loss_function'] + '().to(self.run_info["device"])')
+        if 'loss_function' in self.info:
+            crit = eval('torch.nn.' + self.info['loss_function'] + '().to(self.run_info["device"])')
+        elif 'class_loss_function' in self.info and 'path_to_class_loss_function' in self.info:
+            path = self.info['path_to_class_loss_function']
+            sys.path.append(os.path.abspath(path))
+            path = path.split('/')
+            file = path[-1]
+            path = path[:-1]
+            sys.path.append('/'.join(path))
+            mod = importlib.import_module(file.split('.')[0])
+            crit = getattr(mod, self.info['class_loss_function'])
+        else:
+            raise Exception('No loss function provided in configuration file.')
 
         if self.rerun:
             history = torch.load(f'./{self.run_dir}history_{str(run_id)}.pt')

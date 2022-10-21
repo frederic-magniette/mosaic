@@ -44,6 +44,8 @@ class ServiceModule(rpyc.Service):
         con = sqlite3.connect(global_cache_path)
         cur = con.cursor()
         db_path = cur.execute('SELECT path FROM downloads WHERE url = ?', (url, )).fetchone()
+        if not db_path or not os.path.exists(db_path[0]):
+            db_path = None
         con.close()
         mutex_file.release()
         if not db_path:

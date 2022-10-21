@@ -17,7 +17,7 @@ import numpy as np
 '''
 
 def usage(name=sys.argv[0]):
-	return f'''{name} [database_path] [output_name] [run_files_path]
+	return f'''{name} [database_path] [output_name]
  	[-h]
 	[-id ID, RANGE, LIST | str]
 	[-request SQL_REQUEST | str]
