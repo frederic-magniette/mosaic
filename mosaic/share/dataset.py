@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from mosaic.lib import *
 
 class dataset_OR():
 	def __init__(self):
@@ -8,6 +9,11 @@ class dataset_OR():
 	def prepare(self, data, run_info, module_info):
 
 		np.random.seed(42)
+
+
+		print(get_path_file('test.txt'))
+		save_path_file('setup.py')
+		print(get_path_file('setup.py'))
 
 		data_size = int(module_info['data_size'])
 		X = np.array([np.random.randint(2, size=2) for _ in range(data_size)])

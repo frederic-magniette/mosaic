@@ -79,7 +79,6 @@ class Perf_Analysis():
 		df = pd.DataFrame(pipeline_ids_dataframe['run_id'])
 		list_of_params = self.abscissae + self.ordinates
 		for param in list_of_params:
-			
 			if param in ['test_loss', 'train_loss', 'test_acc', 'train_acc', 'epochs', 'nb_params', 'duration(s)', 'overfit', 'trainability', 'slope']:
 				df_parameters = pd.DataFrame(self.cur.execute(f'''
 				SELECT run_id, {param}
@@ -87,11 +86,12 @@ class Perf_Analysis():
 				WHERE run_id IN {tuple(pipeline_ids_dataframe['run_id'])}''').fetchall(), columns=['run_id', param])
 			else:
 				param_like_syntax = '"%' + param + '"'
-				df_parameters = pd.DataFrame(self.cur.execute(f'''
+				ret = self.cur.execute(f'''
 				SELECT run_id, param_value
 				FROM params
 				WHERE param_name LIKE {param_like_syntax} AND run_id IN {tuple(pipeline_ids_dataframe['run_id'])}
-				''').fetchall(), columns=['run_id', param])
+				''').fetchall()
+				df_parameters = pd.DataFrame(ret, columns=['run_id', param])
 			if df_parameters.empty:
 				raise Exception(f'Empty dataframe on param = {param}.')
 
@@ -101,7 +101,6 @@ class Perf_Analysis():
 				raise Exception(f"Ids don't match on param = {param}")
 
 			df = pd.merge(df, df_parameters, on='run_id')
-
 		return pd.merge(df, pipeline_ids_dataframe, on='run_id')
 
 	def plot(self, config_section, plot_name):
@@ -117,6 +116,9 @@ class Perf_Analysis():
 		self.plot_type = self.plot_type[0][0]
 
 		df = self.find_pipelines_in_database()
+		if df.empty:
+			print(f"No data found in database with section {plot_name}.")
+			return 
 		df = self.get_abscissa_and_ordinate(df)
 
 		df['pipeline'] = df['pipeline'].apply(self.crop_pipeline)

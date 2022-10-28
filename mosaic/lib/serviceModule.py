@@ -36,6 +36,52 @@ queue = set()
 
 class ServiceModule(rpyc.Service): 
 
+    def exposed_save_path_file(self, path):
+        global mutex_file, global_cache_path
+        mutex_file.acquire()
+        con = sqlite3.connect(global_cache_path)
+        cur = con.cursor()
+        file_size = os.stat(path).st_size
+        cur.execute('''INSERT INTO cache VALUES (?, DATETIME("now"), ?, ?, ?)''', ('', file_size, path, 'no'))
+        
+        max_size, current_size = cur.execute('''SELECT max_size, current_size FROM system''').fetchone()
+        new_size = current_size + file_size
+        if current_size + file_size > max_size:
+            diff_size = current_size + file_size - max_size
+            paths, sizes = zip(*cur.execute('''
+                SELECT path, size
+                FROM   cache
+                ORDER  BY last_use ASC
+            ''').fetchall())
+
+            sum_sizes = 0
+            i = 0
+            deleted_path = []
+            while sum_sizes < diff_size:
+                sum_sizes += sizes[i]
+                deleted_path.append((paths[i],))
+                os.remove(paths[i])
+                i += 1
+            cur.executemany('''DELETE FROM cache WHERE path = ?''', deleted_path)
+            new_size = current_size + file_size - sum_sizes
+
+        cur.execute('''UPDATE system SET current_size = ?''', (new_size,))
+        con.commit()
+        con.close()
+        mutex_file.release()
+    
+    def exposed_get_path_file(self, path):
+        global mutex_file, global_cache_path
+        mutex_file.acquire()
+        con = sqlite3.connect(global_cache_path)
+        cur = con.cursor()
+        db_path = cur.execute('SELECT path from cache WHERE path = ?', (path,)).fetchone()
+        con.close()
+        mutex_file.release()
+        if db_path is None:
+            return False
+        return True
+
     def exposed_download_file(self, url, path):
         global mutex_file, global_cache_path
         while url in queue:
@@ -43,7 +89,7 @@ class ServiceModule(rpyc.Service):
         mutex_file.acquire()
         con = sqlite3.connect(global_cache_path)
         cur = con.cursor()
-        db_path = cur.execute('SELECT path FROM downloads WHERE url = ?', (url, )).fetchone()
+        db_path = cur.execute('SELECT path FROM cache WHERE url = ?', (url, )).fetchone()
         if not db_path or not os.path.exists(db_path[0]):
             db_path = None
         con.close()
@@ -65,7 +111,7 @@ class ServiceModule(rpyc.Service):
             mutex_file.acquire()
             con = sqlite3.connect(global_cache_path)
             cur = con.cursor()
-            cur.execute('''INSERT INTO downloads VALUES (?, DATETIME("now"), ?, ?, ?)''', (url, file_size, path, 'yes'))
+            cur.execute('''INSERT INTO cache VALUES (?, DATETIME("now"), ?, ?, ?)''', (url, file_size, path, 'yes'))
             max_size, current_size = cur.execute('''SELECT max_size, current_size FROM system''').fetchone()
 
             new_size = current_size + file_size
@@ -73,7 +119,7 @@ class ServiceModule(rpyc.Service):
                 diff_size = current_size + file_size - max_size
                 paths, sizes = zip(*cur.execute('''
                     SELECT path, size
-                    FROM   downloads
+                    FROM   cache
                     ORDER  BY last_use ASC
                 ''').fetchall())
 
@@ -85,7 +131,7 @@ class ServiceModule(rpyc.Service):
                     deleted_path.append((paths[i],))
                     os.remove(paths[i])
                     i += 1
-                cur.executemany('''DELETE FROM downloads WHERE path = ?''', deleted_path)
+                cur.executemany('''DELETE FROM cache WHERE path = ?''', deleted_path)
                 new_size = current_size + file_size - sum_sizes
 
             db_path = path
@@ -334,7 +380,7 @@ class ServiceModule(rpyc.Service):
         cache_con = sqlite3.connect(cache_path)
         cache_cur = cache_con.cursor()
 
-        cache_cur.execute('''CREATE TABLE IF NOT EXISTS downloads (url, last_use, size, path, downloading)''')
+        cache_cur.execute('''CREATE TABLE IF NOT EXISTS cache (url, last_use, size, path, downloading)''')
         cache_cur.execute('''CREATE TABLE IF NOT EXISTS system (max_size, current_size)''')
         cache_con.commit()
 

@@ -15,6 +15,7 @@ setuptools.setup(
                     'mosaic/bin/mosaic_plotloss',
                     'mosaic/bin/mosaic_metaplot',
                     'mosaic/bin/mosaic_perfanalysis',
+                    'mosaic/bin/mosaic_perfanalysis_by_config',
                     'mosaic/lib/serviceModule.py',
                     'mosaic/lib/execPipe.py'],
          url = 'https://llrogcid.in2p3.fr/the-mosaic-framework/',
