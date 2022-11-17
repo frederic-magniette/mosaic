@@ -1,3 +1,7 @@
+"""
+This file takes care of tuning the parameters of Matplotlib to produce easy-to-read, publication-like and pretty figures somewhat automatically.
+"""
+
 # See https://matplotlib.org/stable/tutorials/introductory/customizing.html for much more tunable parameters
 
 import matplotlib.pyplot as plt
@@ -28,7 +32,8 @@ plt.rcParams['legend.facecolor'] = 'inherit' # default 'inherit'
 plt.rcParams['legend.edgecolor'] = 'black' # default 'inherit'
 
 # Colormap
-plt.rcParams['image.cmap'] = sns.cubehelix_palette(start=1, rot=-1, hue=2.5, light=0, dark=1, gamma=.8, reverse=True, as_cmap=True) 
+#FIXME: was removed because in conflict with the way cmaps are handled in python 3.10. TODO: fix this, I like this cmap
+#plt.rcParams['image.cmap'] = sns.cubehelix_palette(start=1, rot=-1, hue=2.5, light=0, dark=1, gamma=.8, reverse=True, as_cmap=True) 
 
 # Axes
 plt.rcParams['axes.linewidth'] = 1.6 # default 0.8
