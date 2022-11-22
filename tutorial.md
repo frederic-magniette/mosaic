@@ -4,8 +4,7 @@ Let us assume that we want to compare two different architectures of multi-layer
 
 The two models that we consider are simple MLP but the shape of the layers are different. One hase the shape of a funnel (decreasing number of neurons along the layers) and the other one has the shape of a brick (constant number of neurons along the layers). We want to compare them on a basic dataset wich is the logical gate OR. Of course, we want to compare the performances depending on the total number of neurons.
 
-### Step 1
-Create the dataset
+### Step 1: Creating the dataset
 
 As stated in the documentation, the class must implement two methods: prepare and infos.
 
@@ -46,7 +45,7 @@ def info(self):
 	return {'batch_size' : self.batch_size, 'input_size' : 2, 'output_size' : 1}
 ```
 
-### Step 2
+### Step 2: implementating the models
 
 We need to implement the two classes for the two types of MLP we want to compare. Each of them must implement different methods. The __init__ method is the constructor and build the network itself. It takes different arguments that are extracted automatically by the framework from the configuration file (length and width in that case) or the dictionaty built by the other classes in the pipeline (in our case input_size and output_size as seen in step 1).
 
@@ -80,7 +79,7 @@ def load_model(self, path):
 	self = torch.load(path)
 ```
 
-### Step 3
+### Step 3: configuration file
 
 Now that we have all our classes, we need to write the configuration file. It is a ini file with section and parameters inside the sections. The two sections `PROCESS` et `MONITOR` are mandatory and they define parameters for the training loop itself. The parameters are defined in the documentation and will not be detailed here.
 
@@ -120,7 +119,7 @@ The type must be mlp, corresponding to the name appearing in the pipeline scheme
 
 The other parameters are the one that will be given to the init method. The width will always be 3. But for the length, different pipelines will get 2, 3, 4 or 5 in order to test all these solutions.
 
-### Step 4
+### Step 4: running
 
 Now we can launch the trainings with the Mosaic commands.
 
@@ -180,7 +179,7 @@ If this comes from a bug, it is possible to fix it and to use the `mosaic_rerun`
 >> mosaic_rerun config.ini database.db -id 1-3 -epochs 200
 ```
 
-### Step 5
+### Step 5: Analysing
 
 After the execution (or multiple executions), an analysis can be performed to compare all the results.
 
@@ -190,7 +189,6 @@ The `mosaic_plotloss` command creates a pdf file containing all the loss plot fo
 >> mosaic_plotloss database.db plotloss_output.pdf .runs -id all -plot_size 3
 ```
 
-Une partie des résultats de plotloss
 ![plotloss](mosaic/doc/plot_loss_demo.png)
 
 The `mosaic_metaplot` command build the comparison plots themselves. The different runs are aggregated to compute statistics and represent the compared performance of the two models. Different values are available to compare. It can be the train or test loss, the running time but also an overfitting indicator, a trainability indicator and a stability indicator.
@@ -199,7 +197,6 @@ The `mosaic_metaplot` command build the comparison plots themselves. The differe
 >> mosaic_metaplot database.db metaplot.png dataset_OR test_loss
 ```
 
-Résultat de metaplot
 - test_loss
 ![metaplot](mosaic/doc/metaplot_testloss_demo.png)
 - overfiting
