@@ -1,18 +1,33 @@
 # Tutorial
 
-Disons que nous voulons comparer deux architectures de MLP sur un dataset d'opérateur logique OR. Grâce à Mosaic, il est possible de combiner des datasets et des modèles pour faire des pipelines d'entrainement et ainsi analyser deux modèles sur un même dataset. Créez vos classes, écrivez un fichier de configuration et lancez les runs.
+Let us assume that we want to compare two different architectures of multi-layer perceptron (MLP) on a common dataset to determine which one gives the best results. Mosaic will let us create a configuration file to encode this test. In this tutorial, we will see the complete setup of this experiment, from the class writing to the run execution.
 
-Nous voulons comparer une architecture de mlp en forme de brique avec un mlp en forme d'entonoir pour voir à quel point la forme du mlp joue sur la performance du modèle. Dans un cas les hiden layers seront tous de la même taille alors que dans l'autre leur taille sera décroissants. Pour mieux les comparer, les deux modèles auront le même nombre de neurones.
+The two models that we consider are simple MLP but the shape of the layers are different. One hase the shape of a funnel (decreasing number of neurons along the layers) and the other one has the shape of a brick (constant number of neurons along the layers). We want to compare them on a basic dataset wich is the logical gate OR. Of course, we want to compare the performances depending on the total number of neurons.
 
-### Step 1
-Commençons par créer nos classes de dataset.
+### Step 1: Creating the dataset
 
-Nous devons implémenter la méthode prepare. Méthode qui sera appelé lors de l'execution de la pipeline pour toutes les classes qui se trouvent dans l'argument data_scheme du fichier de configuration. C'est dans cette méthode que vous allez charger des données de fichiers ou en générer des nouvelles. Le framework attendra du dernier mondule des classes qui se trouvent dans la catégorie data_scheme qu'elle renvoie deux DataLoader. Un pour le jeu d'entrainement et l'autre pour le jeu de test.
+As stated in the documentation, the class must implement two methods: prepare and infos.
+
+The prepare method is executed at the beginning of every run to generate the data. It should provide two dataloaders containing the train and test data.
+
+The generation of data if straightforward
 
 ```python
 def prepare(self, data, run_info, module_info):
-	...
+    data_size = int(module_info['data_size'])
+    X = np.array([np.random.randint(2, size=2) for _ in range(data_s
+ize)])
+    y = np.array([a | b for a, b in X])
+    X = torch.tensor(X).float()
+    y = torch.tensor(y).float()
+    dataset = torch.utils.data.TensorDataset(X, y)
+```
 
+Two arrays are created containing input and output for this problem. They are converted in torch datasets. Please note how to get the data_size information from the configuration file. All the needed parameters should be extracted this way.
+
+Then the dataloaders are created and returned by the function. The complete code of the function can be found in the sources (mosaic/share/dataset.py)
+
+```python
 	train_loader = torch.utils.data.DataLoader(train_dataset,
 	batch_size=self.batch_size, drop_last=True)
 
@@ -21,47 +36,39 @@ def prepare(self, data, run_info, module_info):
 
 	return train_loader, test_loader
 ```
-Nous avons choisi d'utiliser pytorch pour la gestion de donnée du framework. Il est donc nécessaire de renvoyer des DataLoader pytorch.
 
-Nous devons implémenter la méthode info dans laquelle nous renvoyons le paramètre batch_size qui se trouvera dans le fichier de configuration dans la section associée au dataset et toutes les autres valeurs que nous souhaitons stocker pour la suite de l'execution de la pipeline. Dans notre cas, la taille d'entrée et de sortie du MLP nous seront utiles.
+The info method must also be implemented. It returns a dictionary that contains all informations needed by the system or the other classes in the pipeline. In our case, we output three information, the data size, the input size and the output size. 
 
-On pourra ainsi faire une méthode qui ressemble à :
+
 ```python
 def info(self):
 	return {'batch_size' : self.batch_size, 'input_size' : 2, 'output_size' : 1}
 ```
 
-### Step 2
+### Step 2: implementating the models
 
-Implementons maintenant les deux classes de mlp que nous voulons comparer. On peut par exemple changer la forme du mlp et faire une forme de brique et une forme d'entonoir pour voir si l'un ou l'autre à de meilleurs résultats.
-Le type des deux mlp dans le fichier de configuration devra être le même et devra être spécifié dans l'argument pipeline_scheme de la section `PROCESS`.
+We need to implement the two classes for the two types of MLP we want to compare. Each of them must implement different methods. The __init__ method is the constructor and build the network itself. It takes different arguments that are extracted automatically by the framework from the configuration file (length and width in that case) or the dictionaty built by the other classes in the pipeline (in our case input_size and output_size as seen in step 1).
 
-La forme du mlp sera défini dans l'initalisation de la classe et les paramètre de la fonction \_\_init__ doivent avoir le même nom que ceux présents dans le fichier de configuration ou celui des clés du dictionnaire renvoyé par les méthodes info().
-
-Dans notre cas, le prototype de la fonction \_\_init__ de nos mlp sera:
 ```python
-# input_size et output_size viennent de la méthode info() du dataset
-# length et width viennent du fichier de configuration
-def __init__(self, input_size, output_size, length, width)
+class mlp_funnel(torch.nn.Module):
+      def __init__(self, input_size, output_size, length, width)
+      ...
 ```
 
-Dans chacuns d'entre eux, nous devons implémenter la méthode forward qui sera éxecutée lors de l'execution pour transformer les données.
-
-Dans notre cas, forward sera implementé de cette façon.
+Another important method is the forward method, which apply the data on the model
 ```python
 def forward(self, data, run_info, module_info):
 	for layer in self.layers:
-		data = self.activation(layer(data))
+ 		data = self.activation(layer(data))
 	return data
 ```
 
-Nous devons également implémenter la méthode info qui renverra un dictionnaire d'informations utiles aux prochains modules dans la pipeline. Etant donné que nous avons qu'un seul module dans notre pipeline, nous renverrons un dictionnaire vide.
+In our case, the class implements an implied backward method due to its inheritance from the torch.nn.Module. If it is not the case, a backward method, calculating the gradients must be implemented too. It is the same for the parameters method wich return a tensor containing the parameters of the model (for the optimizer).
 
-Si les classes qui se trouvent dans le pipeline_scheme ne possède par de méthode parameters() par default (héritage du Module de pytorch) il faudra alors l'implémenter pour renvoyer les paramètres du modèle sous forme d'un tenseur, de la même manière que parameters des modules pytorch. Dans notre cas nous feront hériter nos classes Mlp de *torch.nn.Module*, nous avons donc pas besoin d'implémenter la méthode parameters().
+The info method, which is mandatory, returns a dictionary of parameters as seen in step 1. As the MLP class is the last one in the pipeline, it returns an empty dictionary.
 
-Enfin, pour sauvegarder et charger le modèle, il faut implémenter la méthode save_model et load_model. Choisissez la méthode que vous voulez pour sauvegarder du moment que load_model sait comment récupérer les informations. Le chemin spécifié dans les arguments ne possède pas d'extension, il faut donc rajouter celle avec laquelle nous voulons sauvegarder ou charger le modèle.
+Finally, the methods save_model et load_model has to be implemented to respectively save and load a model. We have chosen a simple call to Torch specialiazed functions but there is no obligation to use this format. 
 
-Dans notre cas:
 ```python
 def save_model(self, path):
 	path += '.pt'
@@ -72,11 +79,9 @@ def load_model(self, path):
 	self = torch.load(path)
 ```
 
-### Step 3
+### Step 3: configuration file
 
-Passons maintenant au fichier de configuration.
-
-Ajoutons dans un premier temps les deux sections obligatoires: `PROCESS` et `MONITOR` à notre fichier config.ini
+Now that we have all our classes, we need to write the configuration file. It is a ini file with section and parameters inside the sections. The two sections `PROCESS` et `MONITOR` are mandatory and they define parameters for the training loop itself. The parameters are defined in the documentation and will not be detailed here.
 
 ```ini
 [PROCESS]
@@ -95,12 +100,9 @@ cache_database_path = ./cache.db
 cache_size = 1M
 ```
 
-qui possèdent des arguments de gestion de la méthode d'execution ou des informations relatives à tous les runs. Les arguments liés au cache sont utiles si vous utilisez la fonction mosaic.lib.download_file qui permet de télécharger intelligemment et de façon parrallélisé des fichiers. Le cache sert notamment à ne pas télécharger 2 fois un même fichier si le téléchargement se fait dans la classe du data_scheme. 
+After this mandatory part, we need to add sections to decribre the classes we want to compare. The mandatory parameters are type, classe, path_to_class, key
 
-Ensuite ajoutons pour chaque classes que l'on veut comparer, sa section avec les arguments que l'on souhaite lui faire passer.
-Nous devons spécifier les arguments suivants obligatoirement: type, classe, path_to_class, key
-Par exemple, pour notre classe mlp_funnel:
-
+For example, for our mlp_funnel class, we write
 ```ini
 [mlp_funnel]
 type = mlp
@@ -111,13 +113,17 @@ length = {2-5}
 width = 3
 ```
 
-key permet un requêtage simplifié de la base de donnée. Il est donc important de la choisir comme il faut. Si elle ne vous convient pas au moment de faire des plots, vous pouvez mettre à jour votre base de donnée en utilisant `mosaic_rekey` après avoir regénéré les pipelines concernées grâce à `mosaic_generate`.
+The full configuration file can be found in mosaic/share/config.ini. 
 
-### Step 4
+The type must be mlp, corresponding to the name appearing in the pipeline scheme. The class correspond to the name of the class in the python file (for import) and the path_to_class is the python file itself. The key is a regular expression allowing to group some results during the analysis phase. The pipeline name could be mlp_funnel_2_3 but we dont want to use that level of detail, just comparing the funnel versus the brick. Thus, we use a simplified key. The keys can be modified after the run by the `mosaic_rekey` command.
 
-Nous avons désormais tous les pré-requis pour lancer les entrainements.
+The other parameters are the one that will be given to the init method. The width will always be 3. But for the length, different pipelines will get 2, 3, 4 or 5 in order to test all these solutions.
 
-La commande `mosaic_run` permet de lancer l'execution des pipelines grâce au fichier de configuration qu'on lui passe en paramètre
+### Step 4: running
+
+Now we can launch the trainings with the Mosaic commands.
+
+The `mosaic_run` command launch the execution of all the pipeline training following the configuration file.
 
 ```bash
 >> mosaic_run config.ini database.db
@@ -132,13 +138,15 @@ La commande `mosaic_run` permet de lancer l'execution des pipelines grâce au fi
  [run finished] 1
  ---> launch 9 9/24
 ```
-Comme il n'est pas conseillé d'intéragir avec la base de donnée pendant le run, la commande `mosaic_savedb` permet de faire une copie de la base de donnée à tout moment du run.
+As we can see, the output of the mosaic_run command shows the different runs at start and stop.
+
+For integrity reason, it is not possible to open or modify the database during this execution. If one want to make some preliminary analysis, the `mosaic_savedb` command perform a copy of the database as it is. This copy is completely detached from the execution and any operation is allowed on it.
 
 ```bash
 >> mosaic_savedb database_copy.db
 ```
 
-Vous pouvez suivre l'avancement des runs en utilisant la commande `mosaic_status`.
+During the execution, it is possible to follow its status with the `mosaic_status` command.
 
 ```bash
 >> mosaic_status
@@ -162,40 +170,36 @@ Running
         [15] dataset_OR(1,200,0.8) | mlp_brick(4,2)
 ```
 
-Les runs finis sont décris par leur id, les dernières loss atteintes et le temps d'execution. 
 
-Chaque runs en cours est décrit par son id suivi de la pipeline formaté qui lui est associé. Le formatage est fait en fonction de l'ordre paramètre du fichier de configuration pour chaque module présent dans la pipeline.
+The finished runs are described with their id and their performance. The running runs are described with their id and their pipeline (including all parameters). For the run that have terminated with an error, the backtrace of the error is printed.
 
-Les erreurs sont renvoyées avec la pipeline associé et l'id du run.
+If this comes from a bug, it is possible to fix it and to use the `mosaic_rerun` command to relaunch them specifically.
 
-Si un problème est apparu ou que vous aimeriez continuer l'entrainement, il est possible de relancer qu'une partie des pipelines avec `mosaic_rerun`.
-Si je veux par exemple relancer 200 epochs sur les 3 premiers runs, je peux faire
 ```bash
 >> mosaic_rerun config.ini database.db -id 1-3 -epochs 200
 ```
 
-### Step 5
+### Step 5: Analysing
 
-Toutes les données issues des différents runs sont stockées dans une base de donnée et peuvent être analysées grâce aux commandes `mosaic_plotloss` `mosaic_metaplot`.
+After the execution (or multiple executions), an analysis can be performed to compare all the results.
+
+The `mosaic_plotloss` command creates a pdf file containing all the loss plot for all the pipelines. This curves permit to check if the training has been finished correctly or if some more epochs are necessary. In that case, the `mosaic_rerun` command can be used.
 
 ```bash
 >> mosaic_plotloss database.db plotloss_output.pdf .runs -id all -plot_size 3
 ```
 
-Une partie des résultats de plotloss
 ![plotloss](mosaic/doc/plot_loss_demo.png)
 
+The `mosaic_metaplot` command build the comparison plots themselves. The different runs are aggregated to compute statistics and represent the compared performance of the two models. Different values are available to compare. It can be the train or test loss, the running time but also an overfitting indicator, a trainability indicator and a stability indicator.
 
 ```bash
 >> mosaic_metaplot database.db metaplot.png dataset_OR test_loss
 ```
 
-Résultat de metaplot
 - test_loss
 ![metaplot](mosaic/doc/metaplot_testloss_demo.png)
 - overfiting
 ![metaplot2](mosaic/doc/metaplot_overfit_demo.png)
 
-On remarque que comparer l'overfitting n'est pas très pertinant car les valeurs sont très petites.
-
-Cependant, on peut quand même constater que le mlp_brick semble mieux apprendre que mlp_funnel.
+We can deduce from these plots that the brick MLP is really better that the funnel on this dataset.
