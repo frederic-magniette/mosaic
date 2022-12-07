@@ -77,14 +77,11 @@ class Perf_Analysis():
 		self.cur = self.con.cursor()
 		ids_set = {}
 			
-		_where = (f'\nWHERE p0.param_name LIKE "%status" AND (' +
-					  ' OR '.join([f'p0.param_value LIKE "%done"'])
-					  + ') AND p1.param_name LIKE "%pipeline"')
+		_where = (f'\nWHERE p0.param_name LIKE "%status" AND p0.param_value LIKE "%done"')
 
 		select = set(self.cur.execute('''
-				SELECT DISTINCT p0.run_id, p1.param_value
-				FROM params p0
-					INNER JOIN params p1 ON p0.run_id = p1.run_id'''
+				SELECT DISTINCT p0.run_id
+				FROM params p0'''
 				+ _where
 				).fetchall())
 		
@@ -92,21 +89,20 @@ class Perf_Analysis():
 			raise Exception('All runs found in database have status "error".')
 		else:
 			ids_set = select
-		# TODO: it is useless to retunr a df, return only the indices
-		#df = pd.DataFrame(ids_set, columns=['run_id', 'pipeline'])
-		df = pd.DataFrame(ids_set, columns=['run_id', 'pipeline'])
-		return df
+		
+		ids_list = [idx[0] for idx in ids_set]
+		return ids_list
 
 	def find_successful_pipelines_in_database(self):
 		"""
-		Run through the database, select all rows for which the include_keys[include_values] criterion are met AND the run_id is in the pre-selected ones
+		Call find_pipelines_in_database() and find_successful_run_ids_in_database(),
+		keep only the pipeline whose id corresponds to a successful run
 		"""
-		# TODO: I can prob split this in two functions: 1) fetch all pipelines, fect all "done" runs, 2) cut first db from list of "done" runs
 		self.con = sqlite3.connect(self.database_file)
 		self.cur = self.con.cursor()
 
 		df_pipes  = self.find_pipelines_in_database()
-		done_runs = self.find_successful_run_ids_in_database()["run_id"].values
+		done_runs = self.find_successful_run_ids_in_database()
 		intersection = [r for r in df_pipes["run_id"] if r in done_runs]
 		
 		df = df_pipes[df_pipes["run_id"].isin(intersection)]
@@ -125,7 +121,7 @@ class Perf_Analysis():
 		df = pd.DataFrame(pipeline_ids_dataframe['run_id'])
 		list_of_params = self.abscissae + self.ordinates
 		for param in list_of_params:
-			if param in ['test_loss', 'train_loss', 'test_acc', 'train_acc', 'epochs', 'nb_params', 'duration(s)', 'overfit', 'trainability', 'slope']:
+			if param in ['test_loss', 'train_loss', 'test_acc', 'train_acc', 'epochs', 'nb_params', 'duration(s)', 'overfit', 'trainability', 'slope','slope_std_plus', 'slope_std_minus']:
 				df_parameters = pd.DataFrame(self.cur.execute(f'''
 				SELECT run_id, {param}
 				FROM run_results
@@ -163,6 +159,11 @@ class Perf_Analysis():
 		self.ordinates = list(map(lambda elem : elem[0], self.ordinates))
 		self.excludes = list(map(lambda elem : elem[0], self.excludes))
 		self.plot_type = self.plot_type[0][0]
+		try: # option for violin plots
+			self.plot_scale = config_section['plot_scale'][0][0]
+		except:
+			self.plot_scale = "None"
+			pass
 
 		df = self.find_successful_pipelines_in_database()
 		#df = self.find_pipelines_in_database()
@@ -185,20 +186,24 @@ class Perf_Analysis():
 				if self.plot_type == 'line' or self.plot_type == 'point':
 					for pipeline in list_of_pipelines:
 						extract_df = df[df['pipeline'] == pipeline]
-						extract_df_mean = extract_df.groupby([abs, 'pipeline']).mean().reset_index()
-						extract_df_std = extract_df.groupby([abs, 'pipeline']).std().reset_index()
-						plt.errorbar(extract_df_mean[abs], extract_df_mean[ord], yerr=extract_df_std[ord], label=pipeline)
+						extract_df_mean = extract_df.groupby([abscissa, 'pipeline']).mean().reset_index()
+						extract_df_std = extract_df.groupby([abscissa, 'pipeline']).std().reset_index()
+						plt.errorbar(extract_df_mean[abscissq], extract_df_mean[ordinate], yerr=extract_df_std[ord], label=pipeline)
 						#plt.plot(extract_df_mean[abs], extract_df_mean[ord], label=pipeline)
 						#plt.fill_between(extract_df_mean[abs], extract_df_mean[ord] - extract_df_std[ord], extract_df_mean[ord] + extract_df_std[ord], alpha=0.5)
 				elif self.plot_type == 'violin':
-					violinplot(data=df, y=ord, x=abs, hue='pipeline', scale='count', inner='box', cut=0)
-
+					plt.rc('axes', prop_cycle=mosaic.lib.plt_params.violin_cycler)
+					if self.plot_scale not in ['area', 'count', 'width']:
+						print(f"Plot scale {self.plot_scale} not understood. Using scale 'count' as default.")
+						self.plot_scale = 'count'
+					violinplot(data=df, x=abs, y=ord, hue='pipeline', scale=self.plot_scale, scale_hue=False, inner='box', cut=0)
 			
 				#plt.title(plot_name)
 				plt.xlabel(abs)
 				plt.ylabel(ord)
 				plt.legend()
 				plt.tight_layout()
+				plt.savefig("metaplots.pdf")
 				plt.show()
 		
 

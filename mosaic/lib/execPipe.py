@@ -248,6 +248,7 @@ class ExecPipe():
         ten_p = nb_epochs // 10
         last_train = hist_train[nb_epochs - ten_p:]
         last_train_dec = hist_train[nb_epochs - ten_p - 1:-1]
+        grad = last_train - last_train_dec
 
         max_test = np.max(hist_test)
         max_train = np.max(hist_train)
@@ -261,8 +262,11 @@ class ExecPipe():
 
         overfit = diff_hist[-1] / (range_data)
         trainability = np.sum(hist_test) / nb_epochs
-        slope = np.mean(last_train - last_train_dec)
-        return {'overfit': overfit, 'trainability': trainability, 'slope': slope}
+        slope = np.mean(grad)
+        std_p = np.std([g for g in grad if g >= slope])
+        std_m = np.std([g for g in grad if g <= slope])
+
+        return {'overfit': overfit, 'trainability': trainability, 'slope': slope, 'slope_std_plus': std_p, 'slope_std_minus': std_m}
 
     def _save_results(self, run_id, data_to_save, results, return_status):
         try:
