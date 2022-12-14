@@ -21,6 +21,10 @@ default_cycler = (
         cycler(color=['tab:blue','tab:orange','tab:green','tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:olive']) +
         cycler(linestyle=['-', '--', '-.', ':', '-', '--', '-.', ':']) +
         cycler(marker=['o', 'v', '^', 's', 'p', 'P', 'X', 'D']))
+violin_cycler = (
+        cycler(color=['tab:blue','tab:orange','tab:green','tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:olive']) +
+        cycler(linestyle=['-'] * 8) +
+        cycler(marker=[''] * 8))
 plt.rc('axes', prop_cycle=default_cycler)
 
 # Legends NOTE: shadow colour overlaps with facecolor, making the legend ugly if the former is darker. NOTE 2: one can use shadow by setting framealpha to none
