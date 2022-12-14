@@ -186,13 +186,13 @@ class Perf_Analysis():
 				if self.plot_type == 'line' or self.plot_type == 'point':
 					for pipeline in list_of_pipelines:
 						extract_df = df[df['pipeline'] == pipeline]
-						extract_df_mean = extract_df.groupby([abscissa, 'pipeline']).mean().reset_index()
-						extract_df_std = extract_df.groupby([abscissa, 'pipeline']).std().reset_index()
-						plt.errorbar(extract_df_mean[abscissq], extract_df_mean[ordinate], yerr=extract_df_std[ord], label=pipeline)
+						extract_df_mean = extract_df.groupby([abs, 'pipeline']).mean().reset_index()
+						extract_df_std = extract_df.groupby([abs, 'pipeline']).std().reset_index()
+						plt.errorbar(extract_df_mean[abs], extract_df_mean[ord], yerr=extract_df_std[ord], label=pipeline)
 						#plt.plot(extract_df_mean[abs], extract_df_mean[ord], label=pipeline)
 						#plt.fill_between(extract_df_mean[abs], extract_df_mean[ord] - extract_df_std[ord], extract_df_mean[ord] + extract_df_std[ord], alpha=0.5)
 				elif self.plot_type == 'violin':
-					plt.rc('axes', prop_cycle=mosaic.lib.plt_params.violin_cycler)
+					plt.rc('axes', prop_cycle=mosaic.lib.plt_params.violin_cycler) # linestyles & markers are irrelevant here
 					if self.plot_scale not in ['area', 'count', 'width']:
 						print(f"Plot scale {self.plot_scale} not understood. Using scale 'count' as default.")
 						self.plot_scale = 'count'
