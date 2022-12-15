@@ -13,9 +13,10 @@ import mosaic.lib.plt_params
 from seaborn import violinplot
 
 class Perf_Analysis():
-	def __init__(self, config_file, database_file):
+	def __init__(self, config_file, database_file, output_name):
 		self.config_file = config_file
 		self.database_file = database_file
+		self.output_name = output_name
 		self.conf_parser = ConfigParser()
 		self.conf_parser.read(config_file)
 		self.scheduler()
@@ -164,6 +165,10 @@ class Perf_Analysis():
 		except:
 			self.plot_scale = "None"
 			pass
+		try: # option for error bars in line/dots plots
+			self.errorbars_style = config_section['errorbars_style'][0][0]
+		except:
+			self.errorbars_style = None
 
 		df = self.find_successful_pipelines_in_database()
 		#df = self.find_pipelines_in_database()
@@ -185,12 +190,17 @@ class Perf_Analysis():
 			for ord in self.ordinates:
 				if self.plot_type == 'line' or self.plot_type == 'point':
 					for pipeline in list_of_pipelines:
+						if self.errorbars_style not in ['bars', 'fill_between']:
+							print(f"Error bars style {self.errorbars_style} not understood. Using 'bars' as default.")
+							self.errorbars_style = 'bars'
 						extract_df = df[df['pipeline'] == pipeline]
 						extract_df_mean = extract_df.groupby([abs, 'pipeline']).mean().reset_index()
 						extract_df_std = extract_df.groupby([abs, 'pipeline']).std().reset_index()
-						plt.errorbar(extract_df_mean[abs], extract_df_mean[ord], yerr=extract_df_std[ord], label=pipeline)
-						#plt.plot(extract_df_mean[abs], extract_df_mean[ord], label=pipeline)
-						#plt.fill_between(extract_df_mean[abs], extract_df_mean[ord] - extract_df_std[ord], extract_df_mean[ord] + extract_df_std[ord], alpha=0.5)
+						if self.errorbars_style == 'bars':
+							plt.errorbar(extract_df_mean[abs], extract_df_mean[ord], yerr=extract_df_std[ord], label=pipeline)
+						elif self.errorbars_style == 'fill_between':
+							plt.plot(extract_df_mean[abs], extract_df_mean[ord], label=pipeline)
+							plt.fill_between(extract_df_mean[abs], extract_df_mean[ord] - extract_df_std[ord], extract_df_mean[ord] + extract_df_std[ord], alpha=0.5)
 				elif self.plot_type == 'violin':
 					plt.rc('axes', prop_cycle=mosaic.lib.plt_params.violin_cycler) # linestyles & markers are irrelevant here
 					if self.plot_scale not in ['area', 'count', 'width']:
@@ -203,7 +213,7 @@ class Perf_Analysis():
 				plt.ylabel(ord)
 				plt.legend()
 				plt.tight_layout()
-				plt.savefig("metaplots.pdf")
+				plt.savefig(self.output_name)
 				plt.show()
 		
 
@@ -220,6 +230,8 @@ if __name__ == '__main__':
 	arg_parser = ArgumentParser()
 	arg_parser.add_argument('config_file', type=str)
 	arg_parser.add_argument('database_file', type=str)
+	arg_parser.add_argument('output_name', nargs='?', default='metaplot.pdf')
+	
 	args = vars(arg_parser.parse_args())
-
-	Perf_Analysis(args['config_file'], args['database_file'])
+ 
+	Perf_Analysis(args['config_file'], args['database_file'], args['output_name'])

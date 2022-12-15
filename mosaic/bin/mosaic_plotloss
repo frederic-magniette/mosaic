@@ -6,10 +6,10 @@ import sys
 import torch
 import sqlite3
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from argparse import ArgumentParser
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
-
 
 '''
     Je dois aller chercher à la façon rerun les ids
@@ -177,7 +177,7 @@ if __name__ == '__main__':
 
     legendFig = plt.figure()
 
-    for i, (id, pipeline, nb_params) in enumerate(data):
+    for i, (id, pipeline, nb_params) in tqdm(enumerate(data)):
         if i % (plt_size ** 2) == 0:
             fig, ax = plt.subplots(plt_size, plt_size)
         try:
@@ -191,6 +191,7 @@ if __name__ == '__main__':
             ten_p = nb_epochs // 10
             last_train = hist_train[nb_epochs - ten_p:]
             last_train_dec = hist_train[nb_epochs - ten_p - 1:-1]
+            grad = last_train - last_train_dec
 
             max_test = np.max(hist_test)
             max_train = np.max(hist_train)
@@ -205,14 +206,18 @@ if __name__ == '__main__':
             overfit = diff_hist[-1] / (range_data)
             trainability = np.sum(hist_test) / nb_epochs
             slope = np.mean(last_train - last_train_dec)
+            std_p = np.std([g for g in grad if g >= slope])
+            std_m = np.std([g for g in grad if g <= slope])
 
             int_counter = i % (plt_size ** 2)
             x = int_counter // plt_size
             y = int_counter % plt_size
             l1, = ax[x, y].plot(range(len(history['train_loss'])), history['train_loss'], label='train')
             l2, = ax[x, y].plot(range(len(history['test_loss'])), history['test_loss'], c='r', linestyle='--', label='test')
+            txt = f"overfit {overfit:.2f}\ntrainability {trainability:.2f}\nslope {slope:.3E}" + r"$^{%.3E}_{%.3E}$"%(std_p, std_m)
             ax[x, y].set_title(str(id) + ':' + pipeline.replace(' | ', '\n') + ':' +  str(nb_params), fontsize=8)    
-            ax[x, y].text(0.4, 0.7, f"overfit {overfit:.2f}\ntrainability {trainability:.2f}\nslope {slope:.3E}", size=16 // plt_size, transform=ax[x, y].transAxes, alpha=0.5)
+            #ax[x, y].text(0.4, 0.7, f"overfit {overfit:.2f}\ntrainability {trainability:.2f}\nslope {slope:.3E}", size=16 // plt_size, transform=ax[x, y].transAxes, alpha=0.5)
+            ax[x, y].text(0.4, 0.7, txt, size=16 // plt_size, transform=ax[x, y].transAxes, alpha=0.5)
 
             if i % plt_size ** 2 == plt_size ** 2 - 1 or i == len(data) - 1:
                 it = i
