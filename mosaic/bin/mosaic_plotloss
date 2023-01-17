@@ -205,7 +205,9 @@ if __name__ == '__main__':
 
             overfit = diff_hist[-1] / (range_data)
             trainability = np.sum(hist_test) / nb_epochs
-            slope = np.mean(last_train - last_train_dec)
+            first_half  = last_train[:int(len(last_train)/2]
+            second_half = last_train[int(len(last_train)/2:]
+            slope = np.mean(second_half) - np.mean(first_half)
             std_p = np.std([g for g in grad if g >= slope])
             std_m = np.std([g for g in grad if g <= slope])
 
