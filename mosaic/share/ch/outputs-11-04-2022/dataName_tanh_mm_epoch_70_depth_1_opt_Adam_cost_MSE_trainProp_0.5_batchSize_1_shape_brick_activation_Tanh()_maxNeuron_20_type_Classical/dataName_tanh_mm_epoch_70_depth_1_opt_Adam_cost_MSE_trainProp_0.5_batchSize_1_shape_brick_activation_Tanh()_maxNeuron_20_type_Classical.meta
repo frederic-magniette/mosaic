@@ -1,0 +1,26 @@
+Version of the code:	1
+Start date:	11-04-2022-09-46-11
+End date:	11-04-2022-09-47-00
+Runtime (h:m:s):	0:00:48.880280
+Number of epochs:	70
+Shape:	brick
+Activation:	Tanh()
+MaxNeuron:	20
+Optimiser:	Adam (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    eps: 1e-08
+    lr: 0.01
+    weight_decay: 0
+)
+Loss function:	MSELoss()
+Final loss (train):	0.3408790819631336
+Final loss (test):	0.3312088128140599
+Data name:	tanh_mm
+Data number (train):	1500
+Data number (test):	1500
+Data number (tot):	3000
+Batch size:	1
+Data dimension (input):	1
+Data dimension (output):	1
