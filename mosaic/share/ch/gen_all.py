@@ -2,7 +2,11 @@ import os
 import sys
 import glob
 
+<<<<<<< HEAD
 f1d = ['crenel1', 'expFred1', 'gauss1', 'poly_PS1', 'reLU1', 'sigm1', 'sin1', 'step1', 'tanh1'] 
+=======
+f1d = ['crenel1', 'expFred1', 'gauss1', 'gauss_tight1', 'poly_PS1', 'reLU1', 'sigm1', 'sin1', 'step1', 'tanh1'] 
+>>>>>>> 9a111c7 (removing useless outputs)
 f2d = ['crenel2', 'expFred2', 'gauss2', 'poly_PS2', 'reLU2', 'sigm2', 'sin2', 'step2', 'tanh2', 'rastrigin2', 'ackley2', 'sphere2', 'rosenbrock2', 'himmelblau2'] 
 f3d = []
 funcs   = f1d + f2d + f3d

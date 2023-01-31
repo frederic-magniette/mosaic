@@ -205,11 +205,17 @@ if __name__ == '__main__':
 
             overfit = diff_hist[-1] / (range_data)
             trainability = np.sum(hist_test) / nb_epochs
-            first_half  = last_train[:int(len(last_train)/2]
-            second_half = last_train[int(len(last_train)/2:]
+            first_half  = last_train[:int(len(last_train)/2)]
+            second_half = last_train[int(len(last_train)/2):]
             slope = np.mean(second_half) - np.mean(first_half)
-            std_p = np.std([g for g in grad if g >= slope])
-            std_m = np.std([g for g in grad if g <= slope])
+            grad_p = [g for g in grad if g >= slope]
+            grad_m = [g for g in grad if g <= slope]
+            if len(grad_p) == 0: 
+                grad_p = [0]
+            if len(grad_m) == 0: 
+                grad_m = [0]
+            std_p = np.std(grad_p)
+            std_m = np.std(grad_m)
 
             int_counter = i % (plt_size ** 2)
             x = int_counter // plt_size
@@ -218,7 +224,6 @@ if __name__ == '__main__':
             l2, = ax[x, y].plot(range(len(history['test_loss'])), history['test_loss'], c='r', linestyle='--', label='test')
             txt = f"overfit {overfit:.2f}\ntrainability {trainability:.2f}\nslope {slope:.3E}" + r"$^{%.3E}_{%.3E}$"%(std_p, std_m)
             ax[x, y].set_title(str(id) + ':' + pipeline.replace(' | ', '\n') + ':' +  str(nb_params), fontsize=8)    
-            #ax[x, y].text(0.4, 0.7, f"overfit {overfit:.2f}\ntrainability {trainability:.2f}\nslope {slope:.3E}", size=16 // plt_size, transform=ax[x, y].transAxes, alpha=0.5)
             ax[x, y].text(0.4, 0.7, txt, size=16 // plt_size, transform=ax[x, y].transAxes, alpha=0.5)
 
             if i % plt_size ** 2 == plt_size ** 2 - 1 or i == len(data) - 1:

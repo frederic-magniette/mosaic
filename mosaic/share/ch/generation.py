@@ -7,7 +7,14 @@ import numpy as np
 import h5py
 import ch1d, ch2d
 import challenges
+<<<<<<< HEAD
 from find_local import find_local_minima
+=======
+try: # optional module
+    from find_local import find_local_minima
+except:
+    print("Module find_local not found")
+>>>>>>> 9a111c7 (removing useless outputs)
 import matplotlib.pyplot as plt # for visual checks of the generated data
 import plt_params
 import seaborn as sns
@@ -40,6 +47,10 @@ func = None
 if   name=='crenel1':  func = ch1d.crenel
 elif name=='expFred1': func = ch1d.expFred
 elif name=='gauss1':   func = ch1d.gauss
+<<<<<<< HEAD
+=======
+elif name=='gauss_tight1':   func = ch1d.gauss_tight
+>>>>>>> 9a111c7 (removing useless outputs)
 elif name=='poly_PS1': func = ch1d.poly_PS
 elif name=='reLU1':    func = ch1d.reLU
 elif name=='reLUreg1': func = ch1d.reLUreg
@@ -71,7 +82,11 @@ else:
 
 
 # Generate data
+<<<<<<< HEAD
 def gen(func, name, seed=False, gen='rand'):
+=======
+def gen(func, name, seed=True, gen='rand'):
+>>>>>>> 9a111c7 (removing useless outputs)
     if seed == True:
          np.random.seed(123456789)
     # name is used only to determine the nbr of dimensions

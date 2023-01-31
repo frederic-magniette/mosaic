@@ -12,10 +12,14 @@ def normalise(res):
 def crenel(x):
     return np.heaviside(-x+0.5, 0.0) * np.heaviside(x+0.5, 0.0)
 
+<<<<<<< HEAD
 #def expFred(x): # should be plotted over [-4; 10]
 #    res = np.exp(-(x - 2)**2) + np.exp(-(x - 6)**2 / 10) + 1.0/(x**2 + 1.0)
 #    return -1.0 * res
 def expFred(x): # expFred rescaled to [-1,1]
+=======
+def expFred(x): 
+>>>>>>> 9a111c7 (removing useless outputs)
     y = 7 * x + 3
     res = np.exp(-(y - 2)**2) + np.exp(-(y - 6)**2 / 10) + 1.0/(y**2 + 1.0)
     res = normalise(res)
@@ -23,6 +27,11 @@ def expFred(x): # expFred rescaled to [-1,1]
 
 def gauss(x, m=0, s=0.3): return np.exp(-(x-m)**2 / (2 * s**2))
 
+<<<<<<< HEAD
+=======
+def gauss_tight(x, m=0, s=0.1): return np.exp(-(x-m)**2 / (2 * s**2)) # this to have Fourier RUC need ~10 depth to give good reproduction
+
+>>>>>>> 9a111c7 (removing useless outputs)
 def poly_PS(x): #7th order polynomial of Perez-Salinas et al., https://arxiv.org/pdf/2102.04032.pdf 
     return np.abs(3 * x**3 * (1 - x**4))
 def reLU(x): return x * np.heaviside(x, 0.0)

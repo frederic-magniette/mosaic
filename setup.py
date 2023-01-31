@@ -27,13 +27,13 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     packages = ['mosaic', 'mosaic.bin', 'mosaic.lib', 'mosaic.share'],
     install_requires=[
-        'numpy',
-        'rpyc',
-        'matplotlib',
-        'tqdm',
-        'torch',
-        'pandas',
-        'seaborn'
+        #'numpy',
+        #'rpyc',
+        #'matplotlib',
+        #'tqdm',
+        #'torch',
+        #'pandas',
+        #'seaborn'
     ],
     classifiers=[
         "Programming Language :: Python :: 3.8",
