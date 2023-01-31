@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+from mosaic import PipelinesGenerator
+from mosaic import Scheduler
+from argparse import ArgumentParser
+import subprocess
+import json
+
+if __name__ == '__main__':
+
+	parser = ArgumentParser()
+	parser.add_argument('config_path', type=str)
+	parser.add_argument('database_path', type=str)
+
+	args = vars(parser.parse_args())
+
+	pipeline_filename = 'pipelines_generated.json'
+	proc = subprocess.Popen(['mosaic_generate', args['config_path'], pipeline_filename])
+
+	proc.wait()
+
+	try:
+		with open(pipeline_filename, 'r') as f:
+			pipelines = json.load(f)
+	except:
+		print(f'Failed to open pipelines generated file. Maybe because no pipeline was found in {args["config_path"]}')
+		exit(1)
+
+	# TODO A changer
+	pgen = PipelinesGenerator(args['config_path'], args['database_path'])
+	monitor_info, process_info = pgen.get_monitor_info()
+
+	mntr = Scheduler(pipelines, monitor_info, process_info)

@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+import rpyc
+from argparse import ArgumentParser
+
+if __name__ == '__main__':
+	parser = ArgumentParser()
+	parser.add_argument('path_to_database_copy', type=str)
+	args = vars(parser.parse_args())
+
+	path = args['path_to_database_copy']
+
+	try:
+		con = rpyc.connect('localhost', port=1234)
+		con._config['sync_request_timeout'] = None
+	except:
+		print('Unable to connect to rpyc.')
+		exit(1)
+
+	saved = con.root.save_database(path)
+	if saved:
+		print(f'Database saved in {path}.')
+	else:
+		print(f'{path} is not a valid path.')
